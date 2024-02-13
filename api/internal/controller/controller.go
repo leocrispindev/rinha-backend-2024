@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 	"rinha-backend-2024/api/internal/model"
+	"rinha-backend-2024/api/internal/model/exception"
 	"rinha-backend-2024/api/internal/services/balance"
 	"rinha-backend-2024/api/internal/services/util"
 
@@ -19,7 +20,7 @@ func HandlerTransaction(c *gin.Context) {
 	id, err := util.StringToInt(clientId)
 
 	if err != nil {
-		c.JSON(http.StatusBadRequest, "Invalid client ID")
+		c.JSON(http.StatusBadRequest, "Invalid client Id")
 		c.Abort()
 	}
 
@@ -35,10 +36,12 @@ func HandlerTransaction(c *gin.Context) {
 		return
 	}
 
-	client, err := balance.InsertTransaction(id, transaction)
+	client, errInterface := balance.InsertTransaction(id, transaction)
 
-	if err != nil {
-		c.JSON(500, err.Error())
+	if errInterface != nil {
+		response := convertInterfaceToError(errInterface)
+
+		c.JSON(response.Status, response.Data)
 		c.Abort()
 		return
 	}
@@ -53,17 +56,47 @@ func HandlerExtract(c *gin.Context) {
 	id, err := util.StringToInt(clientId)
 
 	if err != nil {
-		c.JSON(http.StatusBadRequest, "Invalid client ID")
+		c.JSON(http.StatusBadRequest, "Invalid client Id")
 		c.Abort()
 	}
 
-	extract, err := balance.GetExtractByUserId(id)
+	extract, errInterface := balance.GetExtractByUserId(id)
 
-	if err != nil {
-		c.JSON(500, err.Error())
+	if errInterface != nil {
+		response := convertInterfaceToError(errInterface)
+
+		c.JSON(response.Status, response.Data)
 		c.Abort()
 		return
 	}
 
 	c.JSON(200, extract)
+}
+
+func convertInterfaceToError(err interface{}) model.Response {
+
+	switch e := err.(type) {
+	case exception.TransactionError:
+		return model.Response{
+			Status: http.StatusInternalServerError,
+			Data:   e.Error(),
+		}
+
+	case exception.UserNotFound:
+		return model.Response{
+			Status: http.StatusNotFound,
+			Data:   e.Error(),
+		}
+
+	case exception.UnprocessableEntity:
+		return model.Response{
+			Status: http.StatusUnprocessableEntity,
+			Data:   e.Error(),
+		}
+	default:
+		return model.Response{
+			Status: http.StatusInternalServerError,
+			Data:   "unexpected error",
+		}
+	}
 }
