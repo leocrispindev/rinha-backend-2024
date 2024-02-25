@@ -20,7 +20,7 @@ func InsertTransaction(clientId int, transaction model.Transaction) (model.Clien
 	if err != nil {
 		log.Println("error on begin transaction clientID: " + fmt.Sprintf("%d", clientId))
 		return client, exception.TransactionError{
-			Message: "Error begin transaction",
+			Message: "Error on begin transaction",
 		}
 	}
 
@@ -28,35 +28,30 @@ func InsertTransaction(clientId int, transaction model.Transaction) (model.Clien
 
 	// usando o id como chave para bloqueio
 	// será liberado no commit ou no rollback
-	clientRow := sqlTransaction.QueryRow(`SELECT id, balanceLimit, balance FROM client WHERE id=$1 FOR UPDATE`, clientId)
+
+	sqlTransaction.Exec("SELECT pg_advisory_xact_lock($1)", clientId)
+
+	clientRow := sqlTransaction.QueryRow(`SELECT id, balanceLimit, balance FROM client WHERE id=$1`, clientId)
 
 	err = clientRow.Scan(&client.Id, &client.BalanceLimit, &client.Balance)
 
 	if err != nil || err == sql.ErrNoRows {
-
-		return client, exception.UserNotFound{
-			Message: "User not found",
+		log.Println(err)
+		return client, exception.TransactionError{
+			Message: "Internal Server Error",
 		}
 
 	}
 
-	newBalance := 0
+	newBalance := transaction.Value
+
 	if transaction.Type == "d" {
+		newBalance = -transaction.Value
+	}
 
-		newBalance := client.Balance - transaction.Value
-
-		if newBalance < (client.BalanceLimit * -1) {
-			return client, exception.UnprocessableEntity{
-				Message: "Value not accepted for 'd'",
-			}
-		}
-
-	} else {
-		newBalance = client.Balance + transaction.Value
-		if newBalance > client.BalanceLimit {
-			return client, exception.UnprocessableEntity{
-				Message: "Value not accepted for 'c'",
-			}
+	if transaction.Type == "d" && client.Balance-transaction.Value < client.BalanceLimit*-1 {
+		return client, exception.UnprocessableEntity{
+			Message: "You have no limit for this transaction",
 		}
 	}
 
@@ -71,7 +66,7 @@ func InsertTransaction(clientId int, transaction model.Transaction) (model.Clien
 		}
 	}
 
-	updateRow := sqlTransaction.QueryRow(`UPDATE client SET balance=$1 WHERE id=$2 RETURNING balance`, newBalance, client.Id)
+	updateRow := sqlTransaction.QueryRow(`UPDATE client SET balance=balance + $1 WHERE id=$2 RETURNING balance`, newBalance, client.Id)
 
 	err = updateRow.Scan(&client.Balance)
 
@@ -96,11 +91,22 @@ func InsertTransaction(clientId int, transaction model.Transaction) (model.Clien
 func GetExtractByUserId(clientId int) (model.Extract, interface{}) {
 	conn := database.GetConnection()
 
-	sqlResult := conn.QueryRow(`SELECT id, balanceLimit, balance FROM client WHERE id=$1`, clientId)
+	sqlTransaction, err := conn.Begin() // TODO  tratar o erro na abertura da transaction
+
+	if err != nil {
+		log.Println("Error on begin transaction (Statement) clientID: " + fmt.Sprintf("%d", clientId))
+		return model.Extract{}, exception.TransactionError{
+			Message: "Error on begin transaction",
+		}
+	}
+
+	defer sqlTransaction.Rollback() // Se a transação não for commitada, ocorre o rollback
+
+	sqlResult := sqlTransaction.QueryRow(`SELECT id, balanceLimit, balance FROM client WHERE id=$1`, clientId)
 
 	client := model.Client{}
 
-	err := sqlResult.Scan(&client.Id, &client.BalanceLimit, &client.Balance)
+	err = sqlResult.Scan(&client.Id, &client.BalanceLimit, &client.Balance)
 
 	if err != nil && err == sql.ErrNoRows {
 		return model.Extract{}, exception.UserNotFound{
@@ -109,7 +115,7 @@ func GetExtractByUserId(clientId int) (model.Extract, interface{}) {
 
 	}
 
-	transactionRows, err := conn.Query(`
+	transactionRows, err := sqlTransaction.Query(`
 	SELECT t.value, t.type, t.description, t.date 
 	FROM transaction t WHERE t.client_id = $1 
 	ORDER BY t.date DESC LIMIT 10;`, clientId)
@@ -138,6 +144,15 @@ func GetExtractByUserId(clientId int) (model.Extract, interface{}) {
 		}
 
 		transactions = append(transactions, transaction)
+	}
+
+	err = sqlTransaction.Commit()
+
+	if err != nil {
+		log.Println("error on commit transaction (statement) clientID: " + fmt.Sprintf("%d", clientId))
+		return model.Extract{}, exception.TransactionError{
+			Message: "Error on commit message",
+		}
 	}
 
 	return model.Extract{

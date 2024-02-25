@@ -1,6 +1,5 @@
-CREATE DATABASE financial;
-
 \c financial;
+
 
 CREATE TABLE IF NOT EXISTS client (
   id SERIAL PRIMARY KEY,
@@ -18,10 +17,9 @@ CREATE TABLE IF NOT EXISTS transaction (
   FOREIGN KEY (client_id) REFERENCES client(id)
 );
 
-
-INSERT (balanceLimit, balance) INTO client VALUES 
+INSERT INTO client(balanceLimit, balance) VALUES 
 (100000, 0), 
 (80000, 0), 
-(1000000, 0)), 
+(1000000, 0), 
 (10000000	, 0), 
 (500000, 0); 
