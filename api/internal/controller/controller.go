@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"log"
 	"net/http"
 	"rinha-backend-2024/api/internal/model"
 	"rinha-backend-2024/api/internal/model/exception"
@@ -20,18 +21,24 @@ func HandlerTransaction(c *gin.Context) {
 	id, err := util.StringToInt(clientId)
 
 	if err != nil {
-		c.JSON(http.StatusBadRequest, "Invalid client Id")
+		log.Println("Error client id: " + clientId)
+		c.JSON(http.StatusUnprocessableEntity, "Invalid client Id")
 		c.Abort()
 	}
 
 	transaction := model.Transaction{}
 
 	err = c.BindJSON(&transaction)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, "Invalid request body: "+err.Error())
+		c.Abort()
+		return
+	}
 
-	validateError := transaction.Validate()
+	err = transaction.Validate()
 
-	if err != nil || validateError != nil {
-		c.JSON(http.StatusBadRequest, "Invalid request body: "+err.Error())
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, "Invalid request body: "+err.Error())
 		c.Abort()
 		return
 	}
@@ -46,7 +53,12 @@ func HandlerTransaction(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, client)
+	response := map[string]interface{}{
+		"limite": client.BalanceLimit,
+		"saldo":  client.Balance,
+	}
+
+	c.JSON(200, response)
 
 }
 
@@ -56,7 +68,7 @@ func HandlerExtract(c *gin.Context) {
 	id, err := util.StringToInt(clientId)
 
 	if err != nil {
-		c.JSON(http.StatusBadRequest, "Invalid client Id")
+		c.JSON(http.StatusUnprocessableEntity, "Invalid client Id")
 		c.Abort()
 	}
 
