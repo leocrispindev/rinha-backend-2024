@@ -37,7 +37,7 @@ func InsertTransaction(clientId int, transaction model.Transaction) (model.Clien
 
 	if err != nil || err == sql.ErrNoRows {
 		log.Println(err)
-		return client, exception.UnprocessableEntity{
+		return client, exception.TransactionError{
 			Message: "Internal Server Error",
 		}
 
@@ -49,7 +49,7 @@ func InsertTransaction(clientId int, transaction model.Transaction) (model.Clien
 		newBalance = -transaction.Value
 	}
 
-	if client.Balance-transaction.Value < client.BalanceLimit*-1 {
+	if transaction.Type == "d" && client.Balance-transaction.Value < client.BalanceLimit*-1 {
 		return client, exception.UnprocessableEntity{
 			Message: "You have no limit for this transaction",
 		}
