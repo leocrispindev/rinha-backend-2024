@@ -2,7 +2,6 @@ package balance
 
 import (
 	"database/sql"
-	"fmt"
 	"log"
 	"rinha-backend-2024/api/internal/database"
 	"rinha-backend-2024/api/internal/model"
@@ -15,72 +14,55 @@ func InsertTransaction(clientId int, transaction model.Transaction) (model.Clien
 
 	client := model.Client{}
 
-	sqlTransaction, err := conn.Begin()
-
+	tx, err := conn.Begin()
 	if err != nil {
-		log.Println("error on begin transaction clientID: " + fmt.Sprintf("%d", clientId))
-		return client, exception.TransactionError{
-			Message: "Error begin transaction",
-		}
+		log.Println("Error beginning transaction:", err)
+		return client, exception.TransactionError{Message: "Error begin transaction"}
 	}
 
-	defer sqlTransaction.Rollback() // Se a transação não for commitada, ocorre o rollback
+	defer tx.Rollback()
 
-	// usando o id como chave para bloqueio
-	// será liberado no commit ou no rollback
-	//sqlTransaction.Exec(`SELECT pg_advisory_xact_lock($1)`, clientId)
-	clientRow := sqlTransaction.QueryRow(`SELECT id, balanceLimit, balance FROM client WHERE id=$1 FOR UPDATE`, clientId)
-
-	err = clientRow.Scan(&client.Id, &client.BalanceLimit, &client.Balance)
-
-	if err != nil || err == sql.ErrNoRows {
-		log.Println(err)
-		return client, exception.UserNotFound{
-			Message: "User not found",
+	// Pessimist locking with `FOR UPDATE`
+	err = tx.QueryRow(`SELECT id, balanceLimit, balance FROM client WHERE id=$1 FOR UPDATE`, clientId).Scan(&client.Id, &client.BalanceLimit, &client.Balance)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return client, exception.UserNotFound{Message: "User not found"}
 		}
-
+		return client, exception.TransactionError{Message: "Error retrieving client information"}
 	}
 
+	// Validate transaction value and type
 	newBalance := transaction.Value
 	if transaction.Type == "d" {
+		limit := client.Balance - newBalance
+
+		if limit < (client.BalanceLimit * -1) {
+			return client, exception.UnprocessableEntity{
+				Message: "Value not accepted for 'd'",
+			}
+		}
 
 		newBalance = -transaction.Value
 	}
 
-	if client.Balance-transaction.Value < (client.BalanceLimit * -1) {
-		return client, exception.UnprocessableEntity{
-			Message: "Value not accepted for 'd'",
-		}
+	_, err = tx.Exec(`INSERT INTO transaction (client_id, value, type, description, date) VALUES ($1, $2, $3, $4, $5)`, clientId, transaction.Value, transaction.Type, transaction.Description, time.Now())
+	if err != nil {
+		log.Println("Error inserting transaction:", err)
+		return client, exception.TransactionError{Message: "Error insert transaction"}
 	}
 
-	_, err = sqlTransaction.Exec(`INSERT INTO transaction (client_id, value, type, description, date)  VALUES 
-	($1, $2, $3, $4, $5)`, client.Id, transaction.Value, transaction.Type, transaction.Description, time.Now())
-
+	// fix concurrency
+	//the sum at the time of the update guarantees that the "balance" value will be the most updated
+	err = tx.QueryRow(`UPDATE client SET balance = balance + $1 WHERE id = $2 RETURNING balance`, newBalance, clientId).Scan(&client.Balance)
 	if err != nil {
-		log.Println("error on insert transaction clientID: " + fmt.Sprintf("%d", clientId))
-
-		return client, exception.TransactionError{
-			Message: "Error insert transaction",
-		}
+		log.Println("Error updating client balance:", err)
+		return client, exception.TransactionError{Message: "Error updating client balance"}
 	}
 
-	updateRow := sqlTransaction.QueryRow(`UPDATE client SET balance=balance+$1 WHERE id=$2 RETURNING balance`, newBalance, client.Id)
-
-	err = updateRow.Scan(&client.Balance)
-
+	err = tx.Commit()
 	if err != nil {
-		return client, exception.TransactionError{
-			Message: "Error on update client balance",
-		}
-	}
-
-	err = sqlTransaction.Commit()
-
-	if err != nil {
-		log.Println("error on commit transaction clientID: " + fmt.Sprintf("%d", clientId))
-		return client, exception.TransactionError{
-			Message: "Error on commit message",
-		}
+		log.Println("Error committing transaction:", err)
+		return client, exception.TransactionError{Message: "Error committing transaction"}
 	}
 
 	return client, nil
@@ -89,22 +71,11 @@ func InsertTransaction(clientId int, transaction model.Transaction) (model.Clien
 func GetExtractByUserId(clientId int) (model.Extract, interface{}) {
 	conn := database.GetConnection()
 
-	sqlTransaction, err := conn.Begin() // TODO  tratar o erro na abertura da transaction
-
-	if err != nil {
-		log.Println("error on begin transaction clientID: " + fmt.Sprintf("%d", clientId))
-		return model.Extract{}, exception.TransactionError{
-			Message: "Error begin transaction",
-		}
-	}
-
-	defer sqlTransaction.Rollback() // Se a transação não for commitada, ocorre o rollback
-
-	sqlResult := sqlTransaction.QueryRow(`SELECT id, balanceLimit, balance FROM client WHERE id=$1`, clientId)
+	sqlResult := conn.QueryRow(`SELECT id, balanceLimit, balance FROM client WHERE id=$1`, clientId)
 
 	client := model.Client{}
 
-	err = sqlResult.Scan(&client.Id, &client.BalanceLimit, &client.Balance)
+	err := sqlResult.Scan(&client.Id, &client.BalanceLimit, &client.Balance)
 
 	if err != nil && err == sql.ErrNoRows {
 		return model.Extract{}, exception.UserNotFound{
@@ -113,7 +84,7 @@ func GetExtractByUserId(clientId int) (model.Extract, interface{}) {
 
 	}
 
-	transactionRows, err := sqlTransaction.Query(`
+	transactionRows, err := conn.Query(`
 	SELECT t.value, t.type, t.description, t.date 
 	FROM transaction t WHERE t.client_id = $1 
 	ORDER BY t.date DESC LIMIT 10;`, clientId)
@@ -143,8 +114,6 @@ func GetExtractByUserId(clientId int) (model.Extract, interface{}) {
 
 		transactions = append(transactions, transaction)
 	}
-
-	sqlTransaction.Commit()
 
 	return model.Extract{
 		Saldo: model.Balance{
