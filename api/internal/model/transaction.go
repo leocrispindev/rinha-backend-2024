@@ -14,7 +14,11 @@ type Transaction struct {
 
 func (t *Transaction) Validate() error {
 	if t.Type != "c" && t.Type != "d" {
-		return errors.New("Invalid transaction type")
+		return errors.New("invalid transaction [type]")
+	}
+
+	if t.Description == "" || len(t.Description) > 10 {
+		return errors.New("invalid transaction [description]")
 	}
 
 	return nil
