@@ -1,6 +1,14 @@
 # rinha-backend-2024
 
-Este projeto demonstra como construir uma aplicação web simples usando a linguagem de programação Go, o banco de dados PostgreSQL e o servidor web Nginx. A aplicação permite que os usuários gerenciem uma lista de tarefas.
+Este projeto foi desenvolvido para a participação da Rinha de backend, essa edição foi com foco em concorrência.
+
+Link para a rinha: https://github.com/zanfranceschi/rinha-de-backend-2024-q1/
+
+## Stack
+
+* Golang
+* Postgres
+* Nginx
 
 ## Exemplo
 A aplicação possui as seguintes funcionalidades:
