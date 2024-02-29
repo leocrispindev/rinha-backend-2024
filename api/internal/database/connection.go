@@ -18,6 +18,7 @@ func Init() {
 		host = "localhost"
 	}
 
+	fmt.Println(host)
 	config := fmt.Sprintf("host=%s port=5432 user=admin password=admin123 dbname=financial sslmode=disable", host)
 
 	db, err := sql.Open("postgres", config)

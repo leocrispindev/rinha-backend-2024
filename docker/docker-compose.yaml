@@ -1,7 +1,37 @@
 version: "3.5"
 
 services:
-
+  api-service01: &api-service
+    image: leocrispindev/rinhabackend:v0.0.1
+    hostname: service01
+    ports:
+      - "8081:8080"
+    environment:
+      - DB_HOST=db
+    depends_on:
+      - db
+    networks:
+      default:
+        aliases:
+          - service01
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "180MB"
+  
+  api-service02:
+    <<: *api-service 
+    hostname: api-service02
+    environment:
+      - DB_HOST=db
+    ports:
+      - "8082:8080"
+    networks:
+      default:
+        aliases:
+          - service02
+  
   db:
       image: postgres:latest
       hostname: db
@@ -11,5 +41,33 @@ services:
         - POSTGRES_DB=financeiro
       ports:
         - "5432:5432"
+      networks:
+        default:
+          aliases:
+            - db
       volumes:
         - ./initDB.sql:/docker-entrypoint-initdb.d/script.sql
+
+  nginx:
+    image: nginx:latest
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api-service01
+      - api-service02
+    ports:
+      - "9999:9999" 
+    networks:
+      default:
+        aliases:
+          - nginx
+    deploy:
+      resources:
+        limits:
+          cpus: "0.30"
+          memory: "30MB"
+
+networks:
+  default:
+    driver: bridge
+    name: rinha-nginx-2024q1
