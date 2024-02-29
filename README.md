@@ -1,4 +1,5 @@
-# rinha-backend-2024
+<h1 align="center"> Rinha de Backend</h1>
+
 
 Este projeto foi desenvolvido para a participação da Rinha de backend, essa edição foi com foco em concorrência.
 
@@ -53,7 +54,13 @@ HTTP 200 OK
 }
 ``` 
 ### Execução
-
+Na pasta docker:
 ```
 docker-compose up 
 ```
+
+### Performance
+
+<p align="center">
+  <img src="imagens/performance.png"  width="600" height="300">
+</p>
