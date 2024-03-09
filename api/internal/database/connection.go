@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -14,6 +15,16 @@ var dbConn *pgxpool.Pool
 
 func Init() {
 	db, err := pgxpool.ConnectConfig(context.Background(), Config())
+
+	retries := 0
+
+	for err != nil && retries < 3 {
+		db, err = pgxpool.ConnectConfig(context.Background(), Config())
+
+		time.Sleep(3 * time.Second)
+
+		retries++
+	}
 
 	if err != nil {
 		panic(err)
