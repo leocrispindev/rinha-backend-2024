@@ -1,7 +1,7 @@
 <h1 align="center"> Rinha de Backend</h1>
 
 
-Este projeto foi desenvolvido para a participação da Rinha de backend, essa edição foi com foco em concorrência.
+Este projeto foi desenvolvido para a participação da Rinha de backend, essa edição foi com foco em controle de concorrência.
 
 Link para a rinha: https://github.com/zanfranceschi/rinha-de-backend-2024-q1/
 

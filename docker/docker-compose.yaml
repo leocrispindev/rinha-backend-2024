@@ -2,7 +2,7 @@ version: "3.5"
 
 services:
   api-service01: &api-service
-    image: leocrispindev/rinhabackend:v0.0.1
+    image: leocrispindev/rinhabackend:v0.0.3
     hostname: service01
     ports:
       - "8081:8080"
@@ -17,8 +17,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"
-          memory: "180MB"
+          cpus: "0.25"
+          memory: "110MB"
   
   api-service02:
     <<: *api-service 
@@ -47,6 +47,12 @@ services:
             - db
       volumes:
         - ./initDB.sql:/docker-entrypoint-initdb.d/script.sql
+      command: postgres -c checkpoint_timeout=600 -c max_wal_size=4096 -c synchronous_commit=0 -c full_page_writes=0
+      deploy:
+        resources:
+          limits:
+            cpus: "0.90"
+            memory: "300MB"
 
   nginx:
     image: nginx:latest
@@ -64,7 +70,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.30"
+          cpus: "0.10"
           memory: "30MB"
 
 networks:
