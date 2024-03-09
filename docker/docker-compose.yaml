@@ -2,7 +2,7 @@ version: "3.5"
 
 services:
   api-service01: &api-service
-    image: leocrispindev/rinhabackend:v0.0.3
+    image: leocrispindev/rinhabackend:v1.0.0
     hostname: service01
     ports:
       - "8081:8080"
