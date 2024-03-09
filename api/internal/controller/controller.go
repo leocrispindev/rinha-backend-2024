@@ -43,7 +43,7 @@ func HandlerTransaction(c *gin.Context) {
 		return
 	}
 
-	client, errInterface := balance.InsertTransaction(id, transaction)
+	result, errInterface := balance.InsertTransaction(id, transaction)
 
 	if errInterface != nil {
 		response := convertInterfaceToError(errInterface)
@@ -53,12 +53,7 @@ func HandlerTransaction(c *gin.Context) {
 		return
 	}
 
-	response := map[string]interface{}{
-		"limite": client.BalanceLimit,
-		"saldo":  client.Balance,
-	}
-
-	c.JSON(200, response)
+	c.JSON(200, result)
 
 }
 
@@ -72,7 +67,7 @@ func HandlerExtract(c *gin.Context) {
 		c.Abort()
 	}
 
-	extract, errInterface := balance.GetExtractByUserId(id)
+	result, errInterface := balance.GetExtractByUserId(id)
 
 	if errInterface != nil {
 		response := convertInterfaceToError(errInterface)
@@ -82,7 +77,7 @@ func HandlerExtract(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, extract)
+	c.JSON(200, result)
 }
 
 func convertInterfaceToError(err interface{}) model.Response {
