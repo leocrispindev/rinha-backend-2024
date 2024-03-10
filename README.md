@@ -8,7 +8,7 @@ Link para a rinha: https://github.com/zanfranceschi/rinha-de-backend-2024-q1/
 ## Stack
 
 * Golang
-* Postgres
+* PostgreSQL
 * Nginx
 
 ## Exemplo

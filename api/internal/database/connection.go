@@ -16,16 +16,6 @@ var dbConn *pgxpool.Pool
 func Init() {
 	db, err := pgxpool.ConnectConfig(context.Background(), Config())
 
-	retries := 0
-
-	for err != nil && retries < 3 {
-		db, err = pgxpool.ConnectConfig(context.Background(), Config())
-
-		time.Sleep(3 * time.Second)
-
-		retries++
-	}
-
 	if err != nil {
 		panic(err)
 	}
@@ -61,6 +51,7 @@ func Config() *pgxpool.Config {
 
 	dbConfig.MaxConns = defaultMaxConns
 	dbConfig.MinConns = defaultMinConns
+	dbConfig.ConnConfig.ConnectTimeout = 30 * time.Second
 
 	dbConfig.BeforeAcquire = func(ctx context.Context, c *pgx.Conn) bool {
 		log.Println("Before Acquire connection")
